@@ -1,26 +1,35 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>loom — reach the target</title>
 <style>
-body{background:#0d0f12;color:#dfe6ee;font:14px/1.6 ui-monospace,Menlo,monospace;margin:0;padding:28px}
-h1{font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#7f8b99;margin:0 0 10px}
-#t{font-size:26px;letter-spacing:.34em;margin:0 0 20px;color:#7f8b99}
-#t b{color:#7ee0c0}
-#grid{display:grid;gap:6px;margin:0 0 16px}
-.c{width:34px;height:34px;border-radius:50%;border:1px solid #2b3540;background:#141a20;cursor:pointer;transition:background .12s,border-color .12s}
+*{box-sizing:border-box}
+body{background:#0d0f12;color:#dfe6ee;font:14px/1.6 ui-monospace,Menlo,monospace;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px}
+#app{width:100%;max-width:420px}
+h1{font-size:11px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#7f8b99;margin:0 0 18px}
+.lbl{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#5a6c7e;margin:0 0 6px}
+#t{font-size:28px;letter-spacing:.34em;margin:0 0 22px;color:#7ee0c0}
+#frame{border:1px solid #232c36;border-radius:10px;padding:16px;background:#10151a;margin:0 0 16px}
+#grid{display:grid;gap:6px;justify-content:center;margin:0 0 14px}
+.c{width:32px;height:32px;border-radius:50%;border:1px solid #2b3540;background:#141a20;cursor:pointer;transition:background .12s,border-color .12s}
 .c.on{background:#7ee0c0;border-color:#7ee0c0}
 .c:hover{border-color:#5a6c7e}
-#o{font-size:22px;letter-spacing:.34em;color:#dfe6ee;min-height:32px}
-#s{color:#7f8b99;margin-top:12px;min-height:22px}
+#o{font-size:22px;letter-spacing:.34em;color:#dfe6ee;text-align:center;min-height:30px}
+#s{color:#7f8b99;margin-top:14px;min-height:22px}
 #s.win{color:#7ee0c0}
-button{background:#141a20;color:#dfe6ee;border:1px solid #2b3540;padding:7px 14px;border-radius:6px;cursor:pointer;font:inherit;margin-top:18px}
+button{background:#141a20;color:#dfe6ee;border:1px solid #2b3540;padding:8px 16px;border-radius:6px;cursor:pointer;font:inherit}
 button:hover{border-color:#5a6c7e}
 </style></head><body>
+<div id="app">
 <h1>reach the target</h1>
+<p class="lbl">target</p>
 <p id="t"><b id="tw"></b></p>
+<div id="frame">
+<p class="lbl">your word</p>
 <div id="grid"></div>
 <div id="o"></div>
+</div>
 <div id="s"></div>
 <button id="n">new puzzle</button>
+</div>
 <script>
 var P=[["SILICA","GLASSY"],["MOON","STAR"],["THREAD","NEEDLE"],["APOLLO","ZEPHYR"],["THREAD","QUARTZ"],["LANTERN","GLIMMER"],["SATURN","ANCHOR"]];
 var cols=[],st=[],target="",moves=0,done=false;
@@ -28,7 +37,7 @@ var g=document.getElementById('grid'),o=document.getElementById('o'),s=document.
 function word(){var w="";for(var i=0;i<cols.length;i++)w+=String.fromCharCode(cols[i]);return w}
 function draw(){
   g.innerHTML="";
-  g.style.gridTemplateColumns="repeat("+cols.length+",34px)";
+  g.style.gridTemplateColumns="repeat("+cols.length+",32px)";
   for(var b=0;b<8;b++){
     for(var i=0;i<cols.length;i++){
       (function(b,i){
