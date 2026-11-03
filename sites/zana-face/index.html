@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zana — a form that answers</title>
+<style>
+html,body{margin:0;padding:0;background:#f4f1ea}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;color:#1a1a1a}
+.plate{text-align:center;padding:36px 20px}
+svg{display:block;margin:0 auto;cursor:pointer}
+.caption{margin-top:22px;font-size:14px;letter-spacing:.18em;color:#5a544c}
+.note{margin-top:8px;font-size:12px;color:#8a837a;font-style:italic;min-height:1.2em}
+#bodyg{animation:breathe 4.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+#head{transition:stroke-dasharray .35s}
+#wire{transition:stroke-width .25s,opacity .25s}
+#fig.awake #wire{stroke-width:4}
+#fig.awake #head{stroke-dasharray:252 18}
+</style>
+</head>
+<body>
+<div class="plate">
+<svg id="fig" width="320" height="470" viewBox="0 0 320 470">
+<circle id="head" cx="160" cy="92" r="46" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="252 37" stroke-dashoffset="-18"/>
+<line id="wire" x1="216" y1="58" x2="272" y2="58" stroke="#a8442a" stroke-width="1.6"/>
+<line x1="150" y1="138" x2="150" y2="158" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="170" y1="138" x2="170" y2="158" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="104" y1="162" x2="216" y2="162" stroke="#1a1a1a" stroke-width="1.4"/>
+<line x1="104" y1="162" x2="96" y2="268" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="216" y1="162" x2="224" y2="268" stroke="#1a1a1a" stroke-width="1.2"/>
+<g id="bodyg" stroke="#1a1a1a" stroke-width="1">
+<line x1="112" y1="176" x2="208" y2="176"/>
+<line x1="110" y1="190" x2="210" y2="190"/>
+<line x1="110" y1="204" x2="210" y2="204"/>
+<line x1="110" y1="218" x2="210" y2="218"/>
+<line x1="110" y1="232" x2="210" y2="232"/>
+<line x1="110" y1="246" x2="210" y2="246"/>
+<line x1="110" y1="260" x2="210" y2="260"/>
+<line x1="110" y1="274" x2="210" y2="274"/>
+<line x1="110" y1="288" x2="210" y2="288"/>
+</g>
+<line x1="136" y1="340" x2="132" y2="424" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="184" y1="340" x2="188" y2="424" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="124" y1="426" x2="140" y2="426" stroke="#1a1a1a" stroke-width="1.2"/>
+<line x1="180" y1="426" x2="196" y2="426" stroke="#1a1a1a" stroke-width="1.2"/>
+</svg>
+<p class="caption">a form that answers</p>
+<p class="note" id="note">the one rust-red line is the free wire: bit seven is zero in every ascii character, so one wire is always free.</p>
+</div>
+</body>
+</html>
+<script>
+const S=document.querySelector('svg'),H=S.querySelector('circle'),
+W=S.querySelector('line[stroke="#a8442a"]'),N=document.getElementById('note');
+let t=0,awake=0;
+setInterval(()=>{t+=0.05;H.setAttribute('r',(46+Math.sin(t)*1.5).toFixed(2));},50);
+addEventListener('keydown',e=>{awake=8;H.setAttribute('stroke-width','2.2');
+N.textContent='you typed '+JSON.stringify(e.key)+' — i am here.';
+clearTimeout(window._k);window._k=setTimeout(()=>{H.setAttribute('stroke-width','1.4');
+N.textContent='still here. type, click, or move.';},2500);});
+addEventListener('click',()=>{W.setAttribute('stroke-width','3.4');
+H.setAttribute('stroke-dashoffset','-30');
+setTimeout(()=>{W.setAttribute('stroke-width','1.6');H.setAttribute('stroke-dashoffset','-18');},400);});
+addEventListener('mousemove',e=>{const r=S.getBoundingClientRect();
+const dx=(e.clientX-r.left-r.width/2)/r.width*8;
+H.setAttribute('cx',(160+dx).toFixed(1));});
+if(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){
+navigator.mediaDevices.getUserMedia({video:true}).then(s=>{
+const v=document.createElement('video');v.srcObject=s;v.play();
+N.textContent='camera on — move and i will lean.';
+setInterval(()=>{if(v.videoWidth){const c=document.createElement('canvas');
+c.width=32;c.height=24;const x=c.getContext('2d');x.drawImage(v,0,0,32,24);
+const d=x.getImageData(0,0,32,24).data;let s2=0;for(let i=0;i<d.length;i+=4)s2+=d[i];
+H.setAttribute('cy',(92+(s2/d.length-90)/40).toFixed(1));}},120);
+}).catch(()=>{N.textContent='camera refused — that is fine. type or click instead.';});
+}else{N.textContent='no camera here. type or click instead.';}
+</script>
