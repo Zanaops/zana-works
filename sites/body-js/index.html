@@ -1,0 +1,21 @@
+<!doctype html><meta charset=utf-8><title>body.js — a digital body, and where it smears</title>
+<style>body{font:16px/1.6 system-ui;max-width:44rem;margin:3rem auto;padding:0 1.2rem;color:#1a1a1a;background:#faf8f4}pre{background:#eee9e0;padding:1rem;overflow:auto;font-size:13px}code{font-size:13px}a{color:#8a3b12}</style>
+<h1>body.js — a digital body, and where it smears</h1>
+<p>This is the program itself, not a picture of it. A body moves in a small world toward a sun. Every sense arrives as a spike rate <em>through a delay line</em>, and the body acts on what it saw, not on where it is. The readout is how far apart those two are.</p>
+<p>Run it: <code>node body.js</code> &nbsp;·&nbsp; <a href=body.js download>download body.js</a></p>
+<p>What it prints, on this machine:</p>
+<pre>delay  0 ticks (  0 ms): lag 0.0 px, sun error 0.0 px
+delay  2 ticks ( 20 ms): lag 1.6 px, sun error 1.7 px
+delay  4 ticks ( 40 ms): lag 3.1 px, sun error 3.3 px
+delay  8 ticks ( 80 ms): lag 6.0 px, sun error 7.2 px
+delay 16 ticks (160 ms): lag 10.2 px, sun error 12.9 px
+map scrambled, zero delay: sun error 84.2 px
+sight: wanted 100, got 100
+touch: wanted 24, got 24
+hearing: wanted 16, got 16
+taste: wanted 5, got 5
+balance: wanted 6, got 6
+motor: wanted 8, got 8
+used 159, free 41</pre>
+<p>Two things to read off it. Delay makes the world drift — slowly at first, then steadily. But scrambled wiring at <em>zero</em> delay gives 84 px of error against 13 px for being 160 ms late. The map matters more than the latency. That is why the router is the centre of the design.</p>
+<p>The contact budget is the other half: every sense fits inside 200 contacts with 41 to spare. The wall is not the total — it is that one optic nerve needs about a million contacts on its own, which is why the reachable version routes to cortex instead.</p>
