@@ -10,3 +10,6 @@ function budget(n){
   }
   return {rows:out,used:r.used,free:n-r.used};
 }
+const bb=budget(200);
+for(const r of bb.rows) console.log(r[0]+': wanted '+r[1]+', got '+r[2]);
+console.log('used '+bb.used+', free '+bb.free);

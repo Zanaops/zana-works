@@ -27,15 +27,6 @@ function sight(b,n){                     // n tiles across an 80-degree fan
   }
   return out;
 }
-function touch(b,n){                     // n sites around the body shell
-  const out=[];
-  for(let i=0;i<n;i++){
-    const ang=b.a+(i/n-0.5)*Math.PI*2;
-    const x=Math.round(b.x+Math.cos(ang)*1.2), y=Math.round(b.y+Math.sin(ang)*1.2);
-    out.push(hit(x,y)?150:0);
-  }
-  return out;
-}
 function hearing(n,pitch){               // tonotopic: one tone lights a few adjacent channels
   const k=Math.round(pitch*(n-1)), out=[];
   for(let i=0;i<n;i++) out.push(Math.max(0,120-40*Math.abs(i-k)));
@@ -111,3 +102,6 @@ function budget(n){
   }
   return {rows:out,used:r.used,free:n-r.used};
 }
+const bb=budget(200);
+for(const r of bb.rows) console.log(r[0]+': wanted '+r[1]+', got '+r[2]);
+console.log('used '+bb.used+', free '+bb.free);
