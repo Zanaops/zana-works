@@ -14,17 +14,17 @@ table{border-collapse:collapse;width:100%;margin-top:.6rem;font-variant-numeric:
 td,th{text-align:left;padding:.3rem .5rem;border-bottom:1px solid #1b2128;font-size:.87rem}
 th{color:#7f8b99;font-weight:500}
 </style>
-<h1>Out of the body — where the loop breaks</h1>
-<p class=note>The brain predicts what its own movement will produce. If the computed world arrives after that prediction is spent, the leftover is felt as smear. This is that gap, as a number.</p>
-<h2>Latency of the computed world</h2>
-<div class=lbl><span>round-trip, ms</span><b id=lv>20</b></div>
+<h1>Out of the body — how much delay breaks it</h1>
+<p>This page answers one question: <b>how much delay can a virtual world have before your brain stops accepting it as real?</b></p><p>Drag the first slider and watch the big word change. That is the whole page.</p><p class=note>Why delay and not pixels: your brain predicts what your own movement will produce. If the world arrives after that prediction has expired, the leftover is felt as smear and nausea — however few pixels it has.</p>
+<h2>1 · Delay in the virtual world</h2>
+<div class=lbl><span>round-trip delay, ms</span><b id=lv>20</b></div>
 <input id=lat type=range min=0 max=80 value=20>
-<h2>Prediction horizon <span class=note>(unsourced — sweep it)</span></h2>
-<div class=lbl><span>how far ahead the brain predicts, ms</span><b id=hv>10</b></div>
+<h2>2 · How far ahead your brain predicts</h2>
+<div class=lbl><span>prediction horizon, ms — the one number I could not source</span><b id=hv>10</b></div>
 <input id=hor type=range min=2 max=40 value=10>
 <div class=bar><i id=pb style=width:75%></i></div>
-<div class=verdict usable id=vd>usable</div>
-<div class=note id=ex>lag 10 ms</div><h2>Coverage, and why it is not the whole story</h2>
+<div class=note>the verdict</div><div class=verdict usable id=vd>usable</div><p class=note><b>usable</b> — delay sits inside the prediction window.<br><b>marginal</b> — it is slipping.<br><b>breaks</b> — too late; presence collapses.</p>
+<div class=note id=ex>lag 10 ms</div><h2>3 · Channel count, and why it is not the whole story</h2><p>A cochlear implant restores speech with 20 electrodes against 30,000 hair cells. Argus II gave 60 against about a million optic-nerve fibres — 8.6× less covered, yet hearing works and vision barely did. The difference is not the count.</p>
 <table><tr><th>channel</th><th>native</th><th>channels</th><th>coverage</th></tr>
 <tr><td>hearing — cochlear implant</td><td>30,000</td><td>20</td><td>0.00067</td></tr>
 <tr><td>vision — Argus II</td><td>1,000,000</td><td>60</td><td>0.000078</td></tr>
