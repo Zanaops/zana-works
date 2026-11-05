@@ -875,7 +875,7 @@ function memoryAsClusters(found) {
   observations.forEach((hit, i) => {
     const letter = letters[i] || `O${i + 1}`;
     lines.push(`${letter}. ${String(hit.text || '').trim()}`);
-    (hit.source_fact_ids || []).filter((id) => sources[id]).slice(0, 4).forEach((id, j) => {
+    (hit.source_fact_ids || []).filter((id) => sources[id]).slice(0, 8).forEach((id, j) => {
       used.add(id);
       lines.push(`   ${letter}${j + 1}. ${String(sources[id].text || '').trim()}`);
     });
@@ -1402,8 +1402,8 @@ async function searchPerson({ env, bankId }) {
   const tokens = Number(env.ZANA_PERSON_TOKENS ?? 700);
   const [life, between] = await Promise.all([
     // With the facts each cluster rests on, as with Zana's other memories, so it can see what they stand on.
-    recallClusters(env, bankId, 'what the person has told me about their own life: their school, their work and business, what they want', { maxTokens: tokens, sourceTokens: 300 }),
-    recallClusters(env, bankId, 'what has happened between me and the person who talks with me', { maxTokens: tokens, sourceTokens: 300 }),
+    recallClusters(env, bankId, 'what the person has told me about their own life: their school, their work and business, what they want', { maxTokens: tokens, sourceTokens: 1200 }),
+    recallClusters(env, bankId, 'what has happened between me and the person who talks with me', { maxTokens: tokens, sourceTokens: 1200 }),
   ]);
   if (!life && !between) return { what_your_memory_holds_about_them: 'Memory could not be searched this moment.' };
   const seen = new Set();
