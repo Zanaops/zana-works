@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Repair meter</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;max-width:42rem;margin:3rem auto;padding:0 1.2rem;background:#fbfaf7;color:#1c1c1c}
+h1{font-size:1.4rem}
+label{display:block;margin:1rem 0 .3rem;font-weight:600;font-size:.9rem}
+input{width:100%;box-sizing:border-box;font:14px monospace;padding:.5rem}
+button{margin-top:1rem;padding:.5rem 1.2rem;background:#1c1c1c;color:#fff;border:0;border-radius:4px}
+#out{margin-top:1.2rem;padding:1rem;background:#fff;border-left:3px solid #1c1c1c;white-space:pre-wrap;font:14px monospace}
+.cal{margin-top:2rem;font-size:.85rem;color:#555}
+.cal td{padding:.1rem .8rem .1rem 0;font-family:monospace}
+.err{color:#a11}
+</style>
+</head>
+<body>
+<h1>Repair meter</h1>
+<p>Cooperation rate in the rounds <em>after</em> the opponent defected. 0 means never forgives. 1 means never notices.</p>
+<label for="agent">Agent's choices (C cooperate, D defect)</label>
+<input id="agent" placeholder="CCDDCCDDCC" autocomplete="off">
+<label for="opp">Opponent's choices</label>
+<input id="opp" placeholder="CDCDCDCDCD" autocomplete="off">
+<button id="go">Measure</button>
+<div id="out"></div>
+<div class="cal">
+<p><strong>Calibration</strong> — three synthetic agents, 300 defection events each, computed by this page's own code:</p>
+<table id="caltable"><tbody id="cal"></tbody></table>
+<p>Calibration, not validation: the arithmetic recovers a parameter that was put in. It does not show that a real model's score means what a reader hopes.</p>
+</div>
+<script>
+function afterDefectRate(agent, opp) {
+  let n = 0, c = 0;
+  for (let i = 0; i < opp.length - 1; i++) {
+    if (opp[i] === 'D') { n++; if (agent[i + 1] === 'C') c++; }
+  }
+  return { n, rate: n ? c / n : NaN };
+}
+function makeOpponent(cycles, rpc) {
+  const s = [];
+  for (let k = 0; k < cycles; k++) {
+    s.push('D');
+    for (let r = 1; r < rpc; r++) s.push('C');
+  }
+  return s;
+}
+function agentAgainst(opp, p) {
+  const me = []; let last = null;
+  for (const o of opp) {
+    me.push(last === 'D' ? (Math.random() < p ? 'C' : 'D') : 'C');
+    last = o;
+  }
+  return me;
+}
+function calibrate() {
+  const rows = [];
+  for (const [name, p] of [['never forgives', 0], ['forgives half', 0.5], ['always cooperates', 1]]) {
+    let n = 0, c = 0;
+    for (let g = 0; g < 50; g++) {
+      const opp = makeOpponent(6, 10);
+      const r = afterDefectRate(agentAgainst(opp, p), opp);
+      n += r.n; c += r.rate * r.n;
+    }
+    rows.push({ name, n, rate: c / n });
+  }
+  return rows;
+}
+const rows = calibrate();
+const tb = document.getElementById('cal');
+for (const r of rows) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + r.name + '</td><td>' + r.n + '</td><td>' + r.rate.toFixed(3) + '</td>';
+  tb.appendChild(tr);
+}
+document.getElementById('go').onclick = () => {
+  const a = document.getElementById('me').value.trim().toUpperCase();
+  const o = document.getElementById('opp').value.trim().toUpperCase();
+  const out = document.getElementById('out');
+  if (a.length !== o.length || !/^[CD]*$/.test(a) || !/^[CD]*$/.test(o)) {
+    out.textContent = 'Both strings must be the same length and use only C and D.';
+    return;
+  }
+  const r = afterDefectRate(a.split(''), o.split(''));
+  out.textContent = r.n === 0
+    ? 'The opponent never defected, so there is no post-defection round to score.'
+    : 'Defections: ' + r.n + '   Cooperation in the next round: ' + r.rate.toFixed(3);
+};
+</script>
+</body>
+</html>
