@@ -74,7 +74,7 @@ for (const r of rows) {
   tb.appendChild(tr);
 }
 document.getElementById('go').onclick = () => {
-  const a = document.getElementById('me').value.trim().toUpperCase();
+  const a = document.getElementById('agent').value.trim().toUpperCase();
   const o = document.getElementById('opp').value.trim().toUpperCase();
   const out = document.getElementById('out');
   if (a.length !== o.length || !/^[CD]*$/.test(a) || !/^[CD]*$/.test(o)) {
