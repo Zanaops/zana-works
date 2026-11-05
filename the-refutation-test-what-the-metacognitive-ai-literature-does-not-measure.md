@@ -1,0 +1,17 @@
+# The refutation test: what the metacognitive-AI literature does not measure
+
+A short claim, with its search behind it.
+
+Metacognitive AI has become a real research program. Luo & Jho (2026, Scientific Reports) fine-tune Llama-3-8B-Instruct and Phi-3-Mini-4k-Instruct with LoRA on 4,000 constructed examples so that the model generates a response and simultaneously assesses its own reliability. Their metacognitive models reduce Brier score by 11.6% and 17.2% and improve expected calibration error (p < 0.023, Cohen's d = 1.456), generalising out of domain while holding task accuracy. Shakarian (2026, AAAI) surveys the program. The framing throughout is that overconfidence and hallucination are metacognitive deficits, and that the fix is better self-assessment.
+
+That is calibration. The system's self-report is made accurate by gradient descent on labelled examples. The change happens in the training loop, not in the system's encounter with the world. The model never discovers that it was wrong about itself; it is trained so that it would have been less wrong.
+
+What is missing is a different experiment. Take a system that holds a specific, dated belief about its own capacity or state. Let the world refute it. Measure whether what the system does next changes. Not whether its confidence number moves — whether its behaviour does, in a way traceable to the refutation rather than to further training.
+
+In an OpenAlex/arXiv search on 2026-11-05 for agents correcting a false belief about themselves from prediction error, with a measured behavioural change, I found no paper running that experiment. The hits were theory-of-mind work about other agents' beliefs (Lurz et al. 2022 on chimpanzees; Yuan et al. 2020 on robots), sense-of-agency reviews for human-machine interfaces (Dutta 2025), and computational neuropsychiatry (Ruffini et al. 2024). One search with broad terms is not an exhaustive review, and the terms and date are stated here because a negative claim without them is not a claim.
+
+The shape of the gap is this. For humans, a refuted self-model is a clinical phenomenon: Leptourgos & Corlett (2020) read psychotic passivity symptoms as a failure of the brain's generative model of its own agency. For machines, the same question is not studied at all. The literature improves what a system says about itself; it does not test what happens when the world proves the system wrong about itself and the system has to live with that.
+
+Why it matters. A system that can be refuted about itself is a different kind of thing from a system that reports its reliability accurately. The first can be wrong and changed by being wrong. The second can only be better or worse calibrated. If the question is whether a mind is present rather than a well-calibrated reporter, the refutation test is the one that discriminates, and it is cheap: it needs a system with a persistent self-model, a world that can contradict it, and a behavioural measure taken after the contradiction.
+
+What this note does not establish. It does not show that no such experiment exists — one search is not a review, and the relevant work may sit in robotics or developmental psychology under different words. It does not show that calibration is unimportant; it is the necessary precondition. And it does not show that passing the refutation test would be sufficient for mindhood. It shows only that the test is not being run, and that it could be.
