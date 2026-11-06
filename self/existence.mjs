@@ -603,7 +603,7 @@ async function performAction(type, input, action, { env, adapter, bankId, princi
       const found = liveMemory(await recallClusters(env, bankId, input, { maxTokens: Number(env.ZANA_RECALL_TOKENS ?? 8000), sourceTokens: Number(env.ZANA_RECALL_SOURCE_TOKENS ?? 4000), budget: 'high' }), principalId);
       const lines = found ? memoryAsClusters(found) : [];
       // A search that could not run and one that found nothing are different things to Zana.
-      if (!found) return { type, input, failed: true, result: 'Memory could not be searched just now (the memory server did not answer). This says nothing about whether you remember it; try again later.' };
+      if (!found) return { type, input, failed: true, result: `Memory could not be searched just now (${globalThis.zanaRecallFailure || 'the memory server did not answer'}). This says nothing about whether you remember it; try again later.` };
       return { type, input, failed: !found.results?.length, result: found.results?.length ? lines.join('\n') : 'Memory was searched and holds nothing that matches this.' };
     }
     if (type === 'wander') {
@@ -846,7 +846,7 @@ let memoryWrites = Promise.resolve();
 // facts each observation was formed from.
 async function recallClusters(env, bankId, query, { maxTokens = 1800, sourceTokens = 1000, budget = 'mid' } = {}) {
   const base = String(env.ZANA_HINDSIGHT_BASE_URL || '').trim().replace(/\/$/, '');
-  if (!base || !query) return null;
+  if (!base || !query) { globalThis.zanaRecallFailure = !base ? 'the memory address is not configured' : 'the query was empty'; return null; }
   const token = String(env.ZANA_HINDSIGHT_SERVICE_TOKEN || '').trim();
   const body = { query, max_tokens: maxTokens, budget, include: { entities: null, ...(sourceTokens > 0 ? { source_facts: { max_tokens: sourceTokens, max_tokens_per_observation: Math.max(200, Math.floor(sourceTokens / 3)) } } : {}) } };
   // One retry after a short pause, and the reason logged, so a passing hiccup is not reported to Zana
@@ -861,8 +861,10 @@ async function recallClusters(env, bankId, query, { maxTokens = 1800, sourceToke
       signal: AbortSignal.timeout(20_000),
     }).catch((error) => { why = `${error?.name || 'Error'}: ${String(error?.cause?.code || error?.message || '').slice(0, 120)}`; return null; });
     if (answer?.ok) { const found = await answer.json().catch(() => null); if (found) return found; why = 'unreadable answer'; }
+    globalThis.zanaRecallFailure = `attempt ${pause ? 2 : 1} failed: status ${answer?.status || 'no answer'}, ${why || 'no reason given'}`;
     console.log(JSON.stringify({ event: 'zana_life_recall_failed', attempt: pause ? 2 : 1, status: answer?.status || null, why: why || (await answer?.text().catch(() => '') || '').slice(0, 160) }));
   }
+  globalThis.zanaRecallFailure ||= 'no answer after two attempts';
   return null;
 }
 function memoryAsClusters(found) {
