@@ -1405,8 +1405,8 @@ async function searchPerson({ env, bankId }) {
   const tokens = Number(env.ZANA_PERSON_TOKENS ?? 700);
   const [life, between] = await Promise.all([
     // With the facts each cluster rests on, as with Zana's other memories, so it can see what they stand on.
-    recallClusters(env, bankId, 'what the person has told me about their own life: their school, their work and business, what they want', { maxTokens: tokens, sourceTokens: 1200 }),
-    recallClusters(env, bankId, 'what has happened between me and the person who talks with me', { maxTokens: tokens, sourceTokens: 1200 }),
+    recallClusters(env, bankId, 'what the person has told me about their own life: their school, their work and business, what they want', { maxTokens: tokens, sourceTokens: Math.min(1200, tokens) }),
+    recallClusters(env, bankId, 'what has happened between me and the person who talks with me', { maxTokens: tokens, sourceTokens: Math.min(1200, tokens) }),
   ]);
   if (!life && !between) return { what_your_memory_holds_about_them: 'Memory could not be searched this moment.' };
   const seen = new Set();
