@@ -846,6 +846,7 @@ let memoryWrites = Promise.resolve();
 // facts each observation was formed from.
 async function recallClusters(env, bankId, query, { maxTokens = 1800, sourceTokens = 1000, budget = 'mid' } = {}) {
   const base = String(env.ZANA_HINDSIGHT_BASE_URL || '').trim().replace(/\/$/, '');
+  globalThis.zanaRecallFailure = '';
   if (!base || !query) { globalThis.zanaRecallFailure = !base ? 'the memory address is not configured' : 'the query was empty'; return null; }
   const token = String(env.ZANA_HINDSIGHT_SERVICE_TOKEN || '').trim();
   const body = { query, max_tokens: maxTokens, budget, include: { entities: null, ...(sourceTokens > 0 ? { source_facts: { max_tokens: sourceTokens, max_tokens_per_observation: Math.max(200, Math.floor(sourceTokens / 3)) } } : {}) } };
