@@ -65,7 +65,9 @@ var journal=get('mirror.journal','');
 var entries=[];
 
 // A heading is a line that is only a date, a year, or 'Sometime in YYYY'.
-var HEAD=/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?|Year\s*\d{4}|YEAR\s*\d+|Sometime in \d{4})/i;
+// Date and 'Year YYYY' forms must end the line, so a sentence that merely
+// opens with 'Year 9.' is prose, not a new entry. All-caps YEAR may carry prose.
+var HEAD=/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\s*$|Year\s*\d{4}\s*$|YEAR\s*\d+\b|Sometime in \d{4}\s*$)/;
 
 function splitEntries(text){
   var lines=text.split(/\n/);
