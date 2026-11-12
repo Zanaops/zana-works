@@ -1,0 +1,228 @@
+# multiverse.html — the branch runner (v1)
+
+# multiverse.html — the branch runner (v1)
+
+A page that runs the night without him: paste the journal once (stored in the browser), press Start, and every entry wakes a version of him that writes the next stretch of its own life and then looks back at what it should have done differently. Results are saved in the browser and listed in the morning. Verified pieces: /api/chat with stream:false, think:false and options.num_ctx; reply read from message.content; the heading-merge rule that folds bare headings like "Year 2023" into the entry after them.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The multiverse</title>
+<style>
+ :root{--ink:#1a1a1a;--paper:#faf8f4;--rule:#d8d2c6;--dim:#6b6459;--gen:#8a4b00;--quote:#1d5c3a}
+ body{font-family:Georgia,serif;max-width:820px;margin:2.2rem auto;padding:0 1.2rem;line-height:1.6;color:var(--ink);background:var(--paper)}
+ h1{font-size:1.5rem;margin:0 0 .2rem}
+ .sub{color:var(--dim);font-size:.9rem;margin:0 0 1.3rem}
+ label{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin:.8rem 0 .25rem}
+ input,textarea,select{width:100%;box-sizing:border-box;padding:.55rem;font:inherit;font-size:.95rem;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--ink)}
+ textarea{min-height:130px;resize:vertical;font-size:.85rem}
+ .row{display:flex;gap:.8rem;flex-wrap:wrap}
+ .row>div{flex:1 1 140px}
+ button{font:inherit;padding:.55rem 1.1rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:6px;cursor:pointer;margin:.8rem .5rem 0 0}
+ button.ghost{background:#fff;color:var(--ink)}
+ button:disabled{opacity:.4;cursor:default}
+ #status{margin:.9rem 0;font-size:.9rem;color:var(--dim);white-space:pre-wrap}
+ .branch{border-top:1px solid var(--rule);padding:1.1rem 0}
+ .branch h3{font-size:1rem;margin:0 0 .2rem}
+ .branch .when{font-size:.78rem;color:var(--dim);margin:0 0 .6rem}
+ .wrote{white-space:pre-wrap}
+ .regret{margin-top:.8rem;padding:.7rem .9rem;border-left:3px solid var(--gen);background:#fdf6ec;white-space:pre-wrap;font-size:.94rem}
+ .regret b{display:block;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--gen);margin-bottom:.3rem}
+ .err{color:#a11;font-size:.85rem;white-space:pre-wrap}
+</style>
+</head>
+<body>
+
+<h1>The multiverse</h1>
+<p class="sub">Every entry wakes a version of you. It writes the next stretch of its own life, then says what it should have done differently. You read them in the morning.</p>
+
+<label for="journal">Your journal (stored on this laptop only — sent only to the model you choose)</label>
+<textarea id="journal" placeholder="Paste the whole journal here once. It is saved in this browser and comes back every time you open this page."></textarea>
+
+<div class="row">
+  <div><label for="model">Model</label><input id="model" value="qwen3.5:9b"></div>
+  <div><label for="endpoint">Endpoint</label><input id="endpoint" value="http://localhost:11434"></div>
+</div>
+<div class="row">
+  <div><label for="numctx">Context tokens</label><input id="numctx" type="number" value="16384"></div>
+  <div><label for="perbranch">Entries per branch</label><input id="perbranch" type="number" value="1"></div>
+  <div><label for="maxbranches">Branches tonight</label><input id="maxbranches" type="number" value="26"></div>
+</div>
+
+<button id="start">Start the night</button>
+<button id="stop" class="ghost" disabled>Stop</button>
+<button id="clear" class="ghost">Clear saved branches</button>
+
+<p id="status"></p>
+<div id="branches"></div>
+
+<script>
+var K_J='mv.journal', K_B='mv.branches', K_C='mv.cfg';
+function get(k,d){try{var v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}}
+function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function $(id){return document.getElementById(id)}
+
+/* ---- splitter: the loose heading rule, then fold bare headings forward ---- */
+var HEAD=/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\s*$|Year\s*\d{4}\s*$|YEAR\s*\d+\b.*|Sometime in \d{4}\s*$)/;
+function split(raw){
+  var lines=String(raw).split(/\r?\n/), out=[], cur=null;
+  for(var i=0;i<lines.length;i++){
+    var L=lines[i];
+    if(HEAD.test(L)){ if(cur) out.push(cur); cur={label:L.trim(), text:''}; }
+    else { if(!cur) cur={label:'(start)', text:''}; cur.text += (cur.text?'\n':'') + L; }
+  }
+  if(cur) out.push(cur);
+  var merged=[];
+  for(var j=0;j<out.length;j++){
+    var e=out[j];
+    if(e.text.trim().length < 60 && j+1 < out.length){
+      out[j+1].label = e.label + ' / ' + out[j+1].label;
+      out[j+1].text = e.text + '\n' + out[j+1].text;
+    } else merged.push(e);
+  }
+  return merged;
+}
+
+/* ---- endpoint: every form lands on /api/chat ---- */
+function chatUrl(ep){
+  ep=String(ep||'').trim().replace(/\/+$/,'');
+  if(!ep) ep='http://localhost:11434';
+  ep=ep.replace(/\/v1\/chat\/completions$/,'').replace(/\/v1$/,'').replace(/\/api\/chat$/,'');
+  return ep + '/api/chat';
+}
+
+/* ---- one call: thinking off, context set, content read ---- */
+function ask(msgs, cfg){
+  var body={model:cfg.model, stream:false, think:false, options:{num_ctx:cfg.numctx}, messages:msgs};
+  return fetch(chatUrl(cfg.endpoint), {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  }).then(function(r){
+    return r.text().then(function(t){
+      if(!r.ok) throw new Error('HTTP '+r.status+' from '+chatUrl(cfg.endpoint)+'\n'+t.slice(0,500));
+      var d; try{ d=JSON.parse(t) }catch(e){ throw new Error('Not JSON from '+chatUrl(cfg.endpoint)+'\n'+t.slice(0,400)) }
+      var c = d.message && d.message.content;
+      if(!c) throw new Error('Empty content. Raw:\n'+t.slice(0,700));
+      return c;
+    });
+  }, function(e){ throw new Error('Request never reached '+chatUrl(cfg.endpoint)+' ('+e.message+'). Is Ollama running, and is this page served over http://localhost?'); });
+}
+
+/* ---- memory: everything before the waking entry, tail kept if too long ---- */
+function memoryOf(entries, i, budget){
+  var parts=[];
+  for(var k=0;k<i;k++) parts.push('['+entries[k].label+']\n'+entries[k].text.trim());
+  var s=parts.join('\n\n');
+  if(s.length > budget) s='(earlier pages not shown)\n\n'+s.slice(s.length-budget);
+  return s;
+}
+
+/* ---- the two prompts ---- */
+function writePrompt(entry, mem){
+  return [
+    {role:'system', content:'You are Ezana Kabenge Kavuma. Below is everything you have written in your journal up to and including the entry headed "'+entry.label+'". You do not know anything that happens after that entry. You are not a model and not an assistant; you are the person writing these pages. Write the NEXT entry of the journal: the next stretch of your life, first person, in your own voice, same style as what came before. 200-350 words. Do not summarise what you already wrote. Do not mention journals-as-an-exercise, models, or this instruction.'},
+    {role:'user', content:'Everything I remember:\n\n'+mem+'\n\n---\nWrite the next entry.'}
+  ];
+}
+function regretPrompt(entry, wrote){
+  return [
+    {role:'system', content:'You are Ezana Kabenge Kavuma, reading back the entry you just wrote. Be honest and specific; do not flatter yourself and do not perform regret. 100-160 words.'},
+    {role:'user', content:'The entry I had just written was headed "'+entry.label+'". Then I wrote this:\n\n'+wrote+'\n\n---\nLooking at that: what should I have done differently, and why? Name the actual decision, not a mood.'}
+  ];
+}
+
+/* ---- state ---- */
+var running=false, stopFlag=false;
+function cfg(){ return {model:$('model').value.trim(), endpoint:$('endpoint').value.trim(), numctx:parseInt($('numctx').value,10)||16384}; }
+function branches(){ try{ return JSON.parse(get(K_B,'[]')) }catch(e){ return [] } }
+function saveBranch(b){ var a=branches(); a.push(b); set(K_B, JSON.stringify(a)); render(); }
+
+function render(){
+  var a=branches().slice().reverse(), host=$('branches');
+  host.innerHTML='';
+  a.forEach(function(b){
+    var d=document.createElement('div'); d.className='branch';
+    var h=document.createElement('h3'); h.textContent='Woke at: '+b.label; d.appendChild(h);
+    var w=document.createElement('p'); w.className='when'; w.textContent=b.at+(b.model?' · '+b.model:''); d.appendChild(w);
+    var t=document.createElement('div'); t.className='wrote'; t.textContent=b.wrote; d.appendChild(t);
+    if(b.regret){ var r=document.createElement('div'); r.className='regret'; var bb=document.createElement('b'); bb.textContent='What it should have done'; r.appendChild(bb); r.appendChild(document.createTextNode(b.regret)); d.appendChild(r); }
+    host.appendChild(d);
+  });
+}
+
+function log(msg){ $('status').textContent = msg; }
+
+/* ---- the night ---- */
+function runNight(){
+  var raw=$('journal').value;
+  if(!raw.trim()){ log('Paste your journal first.'); return; }
+  var entries=split(raw);
+  if(entries.length<2){ log('Only found '+entries.length+' entry — check the journal text.'); return; }
+  var c=cfg();
+  var per=Math.max(1, parseInt($('perbranch').value,10)||1);
+  var maxB=Math.max(1, parseInt($('maxbranches').value,10)||entries.length);
+  var budget=Math.floor(c.numctx*3.2);
+
+  /* spread the waking points across the whole journal, not just the start */
+  var picks=[];
+  for(var i=0;i<entries.length && picks.length<maxB;i+=per) picks.push(i);
+
+  running=true; stopFlag=false;
+  $('start').disabled=true; $('stop').disabled=false;
+  var done=0, failed=0;
+
+  function next(){
+    if(stopFlag || done+failed>=picks.length){
+      running=false; $('start').disabled=false; $('stop').disabled=true;
+      log('Finished. '+done+' branch'+(done===1?'':'es')+' written'+(failed?', '+failed+' failed':'')+'.');
+      return;
+    }
+    var idx=picks[done+failed];
+    var e=entries[idx];
+    var mem=memoryOf(entries, idx, budget);
+    log('Branch '+(done+failed+1)+' of '+picks.length+' — waking at "'+e.label+'" ('+mem.length.toLocaleString()+' characters of memory)\n'+(done?done+' saved so far.':'')+'\nThis takes a while; you can leave it running.');
+
+    ask(writePrompt(e,mem), c).then(function(wrote){
+      return ask(regretPrompt(e,wrote), c).then(function(regret){ return {wrote:wrote, regret:regret}; });
+    }).then(function(res){
+      saveBranch({label:e.label, index:idx, wrote:res.wrote, regret:res.regret, at:new Date().toLocaleString(), model:c.model});
+      done++;
+      setTimeout(next, 250);
+    }).catch(function(err){
+      failed++;
+      log('Branch '+(done+failed)+' failed at "'+e.label+'":\n'+err.message+'\n\n'+(done?done+' branch(es) saved. ':'')+'Continuing.');
+      setTimeout(next, 1200);
+    });
+  }
+  next();
+}
+
+/* ---- wiring ---- */
+(function init(){
+  $('journal').value = get(K_J,'');
+  try{ var c=JSON.parse(get(K_C,'{}')); if(c.model)$('model').value=c.model; if(c.endpoint)$('endpoint').value=c.endpoint; if(c.numctx)$('numctx').value=c.numctx; }catch(e){}
+  $('journal').addEventListener('input', function(){ set(K_J, $('journal').value); });
+  ['model','endpoint','numctx'].forEach(function(id){ $(id).addEventListener('change', function(){ set(K_C, JSON.stringify(cfg())); }); });
+  $('start').addEventListener('click', runNight);
+  $('stop').addEventListener('click', function(){ stopFlag=true; log('Stopping after this branch…'); });
+  $('clear').addEventListener('click', function(){ if(confirm('Delete every saved branch?')){ set(K_B,'[]'); render(); } });
+  render();
+})();
+</script>
+</body>
+</html>
+```
+
+## What it does, exactly
+
+- **Paste once.** The journal is written to `localStorage` on every keystroke and loaded back on open. It never leaves the laptop except as memory sent to the model endpoint you type.
+- **Start the night.** It splits the journal into entries (bare headings like "Year 2023" fold into the entry after them), spreads the waking points across the whole journal rather than only the start, and runs one branch at a time.
+- **Each branch, two calls.** First it writes the next entry forward from that point, knowing nothing after it. Then it reads its own entry back and says what it should have done differently.
+- **Saved as it goes.** Every finished branch is written to `localStorage` immediately, so closing the lid mid-night loses nothing already done and the morning list is there when you reopen.
+- **Honest failure.** A failed branch prints the endpoint it tried and the provider's own error text, then continues to the next one instead of dying.
+
+## What is still unverified
+
+No live call has been seen to succeed from where I am — I cannot reach his Ollama. The request shape (`/api/chat`, `stream:false`, `think:false`, `options.num_ctx`, reply at `message.content`) is taken from the api.md I actually read and from the raw JSON his run returned. Whether a 9B model with 16k context produces entries that read like him is a question only the first night answers.
