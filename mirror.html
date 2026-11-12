@@ -37,14 +37,14 @@
   <div><label for="prov">Model runs on</label><select id="prov"><option value="local">this computer (Ollama, free)</option><option value="anthropic">Anthropic (needs a key)</option></select></div>
 </div>
 <div class="row">
-  <div><label for="model">Model</label><input id="model" value="qwen2.5:7b"></div>
+  <div><label for="model">Model</label><input id="model" value="llama3.1:8b"></div>
   <div id="keyrow"><label for="key">API key (Anthropic only — kept in this browser, never sent to me)</label><input id="key" type="password" placeholder="sk-ant-..."></div>
 </div>
 <div class="row">
   <div><label for="base">Endpoint</label><input id="base" value="http://localhost:11434/v1/chat/completions"></div>
   <div style="flex:0 0 auto"><button id="wake">Wake it</button></div>
 </div>
-<p class="note">Local: start Ollama first with <code>OLLAMA_ORIGINS=* ollama serve</code>, or the browser blocks the call and it looks like a bug in this file. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
+<p class="note">Local: start Ollama first with <code>OLLAMA_ORIGINS=* ollama serve</code>, or the browser blocks the call and it looks like a bug in this file. The endpoint can be written as <code>http://localhost:11434/v1</code> or the full <code>.../v1/chat/completions</code> — it completes the path itself. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
 
 <div class="panel" id="room" style="display:none">
   <div id="log"></div>
@@ -129,11 +129,21 @@ function rebuild(){
   $('room').style.display='none';
 }
 
+// Accept http://host:11434, .../v1, or the full .../v1/chat/completions.
+function fullUrl(u){
+  u=(u||'').trim().replace(/\/+$/,'');
+  if(!u)return 'http://localhost:11434/v1/chat/completions';
+  if(/\/chat\/completions$/.test(u))return u;
+  if(/\/v1$/.test(u))return u+'/chat/completions';
+  if(/\/v1\//.test(u))return u;
+  return u+'/v1/chat/completions';
+}
+
 function syncProvider(){
   var local=$('prov').value==='local';
   $('keyrow').style.display=local?'none':'block';
   if(local){
-    if($('model').value.indexOf(':')<0)$('model').value='qwen2.5:7b';
+    if($('model').value.indexOf(':')<0)$('model').value='llama3.1:8b';
     if($('base').value.indexOf('anthropic')>=0)$('base').value='http://localhost:11434/v1/chat/completions';
   }else{
     if($('model').value.indexOf(':')>=0)$('model').value='claude-sonnet-5-5';
@@ -188,7 +198,7 @@ $('send').addEventListener('click',async function(){
   try{
     var url,headers,body;
     if(local){
-      url=base;
+      url=fullUrl(base);
       headers={'content-type':'application/json'};
       body=JSON.stringify({model:model,max_tokens:700,messages:[{role:'system',content:system},{role:'user',content:msg}]});
     }else{
@@ -199,7 +209,7 @@ $('send').addEventListener('click',async function(){
     var res=await fetch(url,{method:'POST',headers:headers,body:body});
     var text=await res.text();
     if(!res.ok){
-      $('err').innerHTML='<div class="err">HTTP '+res.status+'\n'+esc(text.slice(0,1200))+'</div>';
+      $('err').innerHTML='<div class="err">HTTP '+res.status+' from '+esc(url)+'\n'+esc(text.slice(0,1200))+'</div>';
       return;
     }
     var data;
@@ -223,7 +233,7 @@ $('send').addEventListener('click',async function(){
     addLine('it said',marked.html);
     $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the entries it remembers; the rest are generated.';
   }catch(e){
-    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nLocal models: is Ollama running with OLLAMA_ORIGINS=* ? If not, the browser blocks this and it looks like a bug in the file. Otherwise: wrong model name, or no internet for the Anthropic option.</div>';
+    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nTried: '+esc(local?fullUrl(base):base)+'\nLocal models: is Ollama running with OLLAMA_ORIGINS=* ? If not, the browser blocks this and it looks like a bug in the file. Otherwise: wrong model name, or no internet for the Anthropic option.</div>';
   }
 });
 
@@ -231,7 +241,7 @@ $('j').value=journal;
 $('j').addEventListener('input',rebuild);
 $('prov').addEventListener('change',syncProvider);
 $('prov').value=get('mirror.prov','local');
-$('model').value=get('mirror.model','qwen2.5:7b');
+$('model').value=get('mirror.model','llama3.1:8b');
 $('base').value=get('mirror.base','http://localhost:11434/v1/chat/completions');
 syncProvider();
 $('model').addEventListener('input',function(){set('mirror.model',$('model').value)});
