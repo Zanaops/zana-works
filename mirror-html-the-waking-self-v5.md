@@ -1,0 +1,265 @@
+# mirror.html — The waking self v5
+
+# mirror.html — The waking self v5
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The waking self</title>
+<style>
+ :root{--ink:#1a1a1a;--paper:#faf8f4;--rule:#d8d2c6;--dim:#6b6459;--quote:#1d5c3a;--gen:#8a4b00}
+ body{font-family:Georgia,serif;max-width:760px;margin:2.4rem auto;padding:0 1.2rem;line-height:1.65;color:var(--ink);background:var(--paper)}
+ h1{font-size:1.55rem;margin:0 0 .2rem}
+ .sub{color:var(--dim);font-size:.9rem;margin:0 0 1.4rem}
+ label{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin:.9rem 0 .25rem}
+ input,textarea,select{width:100%;box-sizing:border-box;padding:.6rem;font:inherit;font-size:.95rem;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--ink)}
+ textarea{min-height:110px;resize:vertical}
+ button{font:inherit;padding:.55rem 1.1rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:6px;cursor:pointer;margin-top:.7rem}
+ .row{display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end}
+ .row>*{flex:1 1 160px}
+ .panel{border-top:1px solid var(--rule);margin-top:1.6rem;padding-top:1rem}
+ .say{border-top:1px solid var(--rule);padding:.85rem 0}
+ .say .who{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:.3rem}
+ q{quotes:none;color:var(--quote);background:#eef5ef;padding:0 .12em;border-radius:2px}
+ .gen{color:var(--gen)}
+ .legend{font-size:.8rem;color:var(--dim);margin:.5rem 0 0}
+ .err{background:#fdecec;border:1px solid #e3b4b4;color:#7a1f1f;padding:.7rem;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;white-space:pre-wrap;margin-top:.8rem}
+ .note{font-size:.85rem;color:var(--dim);margin:.4rem 0 0}
+ .count{font-size:.78rem;color:var(--dim);margin-top:.25rem}
+</style>
+</head>
+<body>
+<h1>The waking self</h1>
+<p class="sub">It wakes at an entry you actually wrote, remembers everything up to it, and knows nothing after it.</p>
+
+<label for="j">Your journal (stays in this browser — it is never sent anywhere except, as memory, to the model you choose)</label>
+<textarea id="j" placeholder="Paste the whole journal here once. It is stored on this laptop only."></textarea>
+<div class="row">
+  <div><label for="pg">Wake at entry</label><select id="pg"></select></div>
+  <div><label for="prov">Model runs on</label><select id="prov"><option value="local">this computer (Ollama, free)</option><option value="anthropic">Anthropic (needs a key)</option></select></div>
+</div>
+<div class="row">
+  <div><label for="model">Model</label><input id="model" value="llama3.1:8b"></div>
+  <div id="keyrow"><label for="key">API key (Anthropic only — kept in this browser, never sent to me)</label><input id="key" type="password" placeholder="sk-ant-..."></div>
+</div>
+<div class="row">
+  <div><label for="base">Endpoint</label><input id="base" value="http://localhost:11434/v1/chat/completions"></div>
+  <div style="flex:0 0 auto"><button id="wake">Wake it</button></div>
+</div>
+<p class="note">Local: start Ollama first with <code>OLLAMA_ORIGINS=* ollama serve</code>, or the browser blocks the call and it looks like a bug in this file. The endpoint can be written as <code>http://localhost:11434/v1</code> or the full <code>.../v1/chat/completions</code> — it completes the path itself. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
+
+<div class="panel" id="room" style="display:none">
+  <div id="log"></div>
+  <label for="msg" style="margin-top:1rem">Say something to it</label>
+  <textarea id="msg" placeholder="What do you want to say to the person you were at that entry?"></textarea>
+  <button id="send">Speak</button>
+  <p class="legend">Every sentence it says is marked: <q>green</q> = your own words, found verbatim in the entries it remembers. <span class="gen">amber</span> = generated — it thought forward from that moment, and it can be wrong about you.</p>
+  <div class="count" id="count"></div>
+  <div id="err"></div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function get(k,d){try{var v=localStorage.getItem(k);return v===null?d:v}catch(e){return d}}
+function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+var journal=get('mirror.journal','');
+var entries=[];
+
+// A heading is a line that is only a date, a year, or 'Sometime in YYYY'.
+// Date and 'Year YYYY' forms must end the line, so a sentence that merely
+// opens with 'Year 9.' is prose, not a new entry. All-caps YEAR may carry prose.
+var HEAD=/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\s*$|Year\s*\d{4}\s*$|YEAR\s*\d+\b|Sometime in \d{4}\s*$)/;
+
+function splitEntries(text){
+  var lines=text.split(/\n/);
+  var segs=[];
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    if(HEAD.test(line))segs.push({label:line.trim().slice(0,80),lines:[line]});
+    else if(segs.length)segs[segs.length-1].lines.push(line);
+  }
+  var out=[];
+  for(var s=0;s<segs.length;s++){
+    var body=segs[s].lines.join('\n').trim();
+    if(body)out.push({label:segs[s].label,text:body});
+  }
+  return out;
+}
+
+function normWords(s){return (s.toLowerCase().match(/[a-z0-9']+/g)||[]);}
+
+function longestRun(sentWords,srcNorm){
+  var n,phrase,i;
+  var top=Math.min(sentWords.length,14);
+  for(n=top;n>=5;n--){
+    for(i=0;i+n<=sentWords.length;i++){
+      phrase=' '+sentWords.slice(i,i+n).join(' ')+' ';
+      if(srcNorm.indexOf(phrase)>=0)return n;
+    }
+  }
+  return 0;
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function markReply(reply,srcNorm){
+  var sents=reply.match(/[^.!?\n]+[.\n!?]*\s*/g)||[reply];
+  var html='',quoted=0;
+  for(var i=0;i<sents.length;i++){
+    var s=sents[i];
+    if(!s.trim()){html+=esc(s);continue;}
+    var w=normWords(s);
+    var run=w.length?longestRun(w,srcNorm):0;
+    var need=Math.max(6,Math.ceil(0.6*w.length));
+    if(run>=need){quoted++;html+='<q>'+esc(s)+'</q>';}
+    else html+='<span class="gen">'+esc(s)+'</span>';
+  }
+  return {html:html,quoted:quoted,total:sents.length};
+}
+
+function rebuild(){
+  journal=$('j').value;
+  set('mirror.journal',journal);
+  entries=journal.trim()?splitEntries(journal):[];
+  var sel=$('pg');
+  sel.innerHTML='';
+  for(var i=0;i<entries.length;i++){
+    var o=document.createElement('option');
+    o.value=String(i);
+    o.textContent=(i+1)+'. '+entries[i].label+' ('+entries[i].text.length+' chars)';
+    sel.appendChild(o);
+  }
+  $('room').style.display='none';
+}
+
+// Accept http://host:11434, .../v1, or the full .../v1/chat/completions.
+function fullUrl(u){
+  u=(u||'').trim().replace(/\/+$/,'');
+  if(!u)return 'http://localhost:11434/v1/chat/completions';
+  if(/\/chat\/completions$/.test(u))return u;
+  if(/\/v1$/.test(u))return u+'/chat/completions';
+  if(/\/v1\//.test(u))return u;
+  return u+'/v1/chat/completions';
+}
+
+function syncProvider(){
+  var local=$('prov').value==='local';
+  $('keyrow').style.display=local?'none':'block';
+  if(local){
+    if($('model').value.indexOf(':')<0)$('model').value='llama3.1:8b';
+    if($('base').value.indexOf('anthropic')>=0)$('base').value='http://localhost:11434/v1/chat/completions';
+  }else{
+    if($('model').value.indexOf(':')>=0)$('model').value='claude-sonnet-5-5';
+    if($('base').value.indexOf('localhost')>=0)$('base').value='https://api.anthropic.com/v1/messages';
+  }
+}
+
+var awake=null;
+
+function memoryFor(idx){
+  var parts=[];
+  for(var i=0;i<=idx&&i<entries.length;i++)parts.push(entries[i].text);
+  var m=parts.join('\n\n');
+  var cap=90000;
+  if(m.length>cap)m=m.slice(m.length-cap);
+  return m;
+}
+
+$('wake').addEventListener('click',function(){
+  $('err').innerHTML='';
+  if(!entries.length){$('room').style.display='block';$('log').innerHTML='';$('err').innerHTML='<div class="err">No journal text yet — paste it in the box above first.</div>';return;}
+  var idx=parseInt($('pg').value||'0',10);
+  var mem=memoryFor(idx);
+  awake={idx:idx,mem:mem,srcNorm:' '+normWords(mem).join(' ')+' '};
+  $('room').style.display='block';
+  $('log').innerHTML='';
+  $('count').textContent='';
+  addLine('you','woke it at entry '+(idx+1)+' of '+entries.length+' — "'+entries[idx].label+'". It remembers '+mem.length+' characters and nothing after this entry.');
+});
+
+function addLine(who,html){
+  var d=document.createElement('div');
+  d.className='say';
+  d.innerHTML='<div class="who">'+esc(who)+'</div><div>'+html+'</div>';
+  $('log').appendChild(d);
+  d.scrollIntoView({block:'nearest'});
+}
+
+$('send').addEventListener('click',async function(){
+  $('err').innerHTML='';
+  if(!awake){$('err').innerHTML='<div class="err">Wake it first.</div>';return;}
+  var msg=$('msg').value.trim();
+  if(!msg)return;
+  var local=$('prov').value==='local';
+  var key=$('key').value.trim();
+  var model=$('model').value.trim();
+  var base=$('base').value.trim();
+  if(!local&&!key){$('err').innerHTML='<div class="err">No API key in the box above. It stays in this browser; I never see it.</div>';return;}
+  addLine('you said',esc(msg));
+  $('msg').value='';
+  var system='You are Ezana, waking at an entry in your own journal: "'+entries[awake.idx].label+'". Below is everything you remember — your journal up to and including this entry. You do not know anything that happens after it; it has not happened yet for you. You are not an assistant and you are not summarising: you are the person who wrote these pages, at this moment in his life, and you speak in the first person as him. Answer as he would answer, in his voice, in short paragraphs. Do not mention that you are a model or that this is a simulation.\n\nYOUR MEMORY (your journal, up to this entry):\n'+awake.mem;
+  try{
+    var url,headers,body;
+    if(local){
+      url=fullUrl(base);
+      headers={'content-type':'application/json'};
+      body=JSON.stringify({model:model,max_tokens:700,messages:[{role:'system',content:system},{role:'user',content:msg}]});
+    }else{
+      url=base;
+      headers={'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+      body=JSON.stringify({model:model,max_tokens:700,system:system,messages:[{role:'user',content:msg}]});
+    }
+    var res=await fetch(url,{method:'POST',headers:headers,body:body});
+    var text=await res.text();
+    if(!res.ok){
+      $('err').innerHTML='<div class="err">HTTP '+res.status+' from '+esc(url)+'\n'+esc(text.slice(0,1200))+'</div>';
+      return;
+    }
+    var data;
+    try{data=JSON.parse(text)}catch(e){data=null;}
+    var reply='';
+    if(local){
+      if(!data||!data.choices||!data.choices[0]){
+        $('err').innerHTML='<div class="err">No choices in the response. Raw:\n'+esc(text.slice(0,1200))+'</div>';
+        return;
+      }
+      reply=(data.choices[0].message&&data.choices[0].message.content)||'';
+    }else{
+      if(!data||!data.content){
+        $('err').innerHTML='<div class="err">The response had no content field. Raw:\n'+esc(text.slice(0,1200))+'</div>';
+        return;
+      }
+      for(var i=0;i<data.content.length;i++){ if(data.content[i].type==='text')reply+=data.content[i].text; }
+    }
+    if(!reply){$('err').innerHTML='<div class="err">The model returned an empty reply. Raw:\n'+esc(text.slice(0,1200))+'</div>';return;}
+    var marked=markReply(reply,awake.srcNorm);
+    addLine('it said',marked.html);
+    $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the entries it remembers; the rest are generated.';
+  }catch(e){
+    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nTried: '+esc(local?fullUrl(base):base)+'\nLocal models: is Ollama running with OLLAMA_ORIGINS=* ? If not, the browser blocks this and it looks like a bug in the file. Otherwise: wrong model name, or no internet for the Anthropic option.</div>';
+  }
+});
+
+$('j').value=journal;
+$('j').addEventListener('input',rebuild);
+$('prov').addEventListener('change',syncProvider);
+$('prov').value=get('mirror.prov','local');
+$('model').value=get('mirror.model','llama3.1:8b');
+$('base').value=get('mirror.base','http://localhost:11434/v1/chat/completions');
+syncProvider();
+$('model').addEventListener('input',function(){set('mirror.model',$('model').value)});
+$('base').addEventListener('input',function(){set('mirror.base',$('base').value)});
+$('prov').addEventListener('change',function(){set('mirror.prov',$('prov').value)});
+rebuild();
+</script>
+</body>
+</html>
+```
+
+What changed from v4: the heading rule now requires a date or 'Year YYYY' to be the whole line, so a sentence that opens 'Year 9. Nothing big really happened…' stays inside the entry it belongs to instead of starting a new one. All-caps 'YEAR 6 DONE wow…' still counts as a heading, because that is how the journal actually writes those. Cost of the fix: a heading written entirely in lower case ('august 19th 2026') is no longer recognised — the journal writes them capitalised, and a missed heading merges two entries rather than splitting one, which is the safer failure.
+
+Still untested: no machine on, so no live call from this file has been seen to succeed on either path.
