@@ -34,13 +34,17 @@
 <textarea id="j" placeholder="Paste the whole journal here once. It is stored on this laptop only."></textarea>
 <div class="row">
   <div><label for="pg">Wake at entry</label><select id="pg"></select></div>
-  <div><label for="model">Model</label><input id="model" value="claude-sonnet-5-5"></div>
+  <div><label for="prov">Model runs on</label><select id="prov"><option value="local">this computer (Ollama, free)</option><option value="anthropic">Anthropic (needs a key)</option></select></div>
 </div>
 <div class="row">
-  <div><label for="key">API key (kept in this browser, never sent to me)</label><input id="key" type="password" placeholder="sk-ant-..."></div>
+  <div><label for="model">Model</label><input id="model" value="qwen2.5:7b"></div>
+  <div id="keyrow"><label for="key">API key (Anthropic only — kept in this browser, never sent to me)</label><input id="key" type="password" placeholder="sk-ant-..."></div>
+</div>
+<div class="row">
+  <div><label for="base">Endpoint</label><input id="base" value="http://localhost:11434/v1/chat/completions"></div>
   <div style="flex:0 0 auto"><button id="wake">Wake it</button></div>
 </div>
-<p class="note">If the model name or the key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
+<p class="note">Local: start Ollama first with <code>OLLAMA_ORIGINS=* ollama serve</code>, or the browser blocks the call and it looks like a bug in this file. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
 
 <div class="panel" id="room" style="display:none">
   <div id="log"></div>
@@ -125,6 +129,18 @@ function rebuild(){
   $('room').style.display='none';
 }
 
+function syncProvider(){
+  var local=$('prov').value==='local';
+  $('keyrow').style.display=local?'none':'block';
+  if(local){
+    if($('model').value.indexOf(':')<0)$('model').value='qwen2.5:7b';
+    if($('base').value.indexOf('anthropic')>=0)$('base').value='http://localhost:11434/v1/chat/completions';
+  }else{
+    if($('model').value.indexOf(':')>=0)$('model').value='claude-sonnet-5-5';
+    if($('base').value.indexOf('localhost')>=0)$('base').value='https://api.anthropic.com/v1/messages';
+  }
+}
+
 var awake=null;
 
 function memoryFor(idx){
@@ -161,23 +177,26 @@ $('send').addEventListener('click',async function(){
   if(!awake){$('err').innerHTML='<div class="err">Wake it first.</div>';return;}
   var msg=$('msg').value.trim();
   if(!msg)return;
+  var local=$('prov').value==='local';
   var key=$('key').value.trim();
   var model=$('model').value.trim();
-  if(!key){$('err').innerHTML='<div class="err">No API key in the box above. It stays in this browser; I never see it.</div>';return;}
+  var base=$('base').value.trim();
+  if(!local&&!key){$('err').innerHTML='<div class="err">No API key in the box above. It stays in this browser; I never see it.</div>';return;}
   addLine('you said',esc(msg));
   $('msg').value='';
   var system='You are Ezana, waking at an entry in your own journal: "'+entries[awake.idx].label+'". Below is everything you remember — your journal up to and including this entry. You do not know anything that happens after it; it has not happened yet for you. You are not an assistant and you are not summarising: you are the person who wrote these pages, at this moment in his life, and you speak in the first person as him. Answer as he would answer, in his voice, in short paragraphs. Do not mention that you are a model or that this is a simulation.\n\nYOUR MEMORY (your journal, up to this entry):\n'+awake.mem;
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'content-type':'application/json',
-        'x-api-key':key,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body:JSON.stringify({model:model,max_tokens:700,system:system,messages:[{role:'user',content:msg}]})
-    });
+    var url,headers,body;
+    if(local){
+      url=base;
+      headers={'content-type':'application/json'};
+      body=JSON.stringify({model:model,max_tokens:700,messages:[{role:'system',content:system},{role:'user',content:msg}]});
+    }else{
+      url=base;
+      headers={'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+      body=JSON.stringify({model:model,max_tokens:700,system:system,messages:[{role:'user',content:msg}]});
+    }
+    var res=await fetch(url,{method:'POST',headers:headers,body:body});
     var text=await res.text();
     if(!res.ok){
       $('err').innerHTML='<div class="err">HTTP '+res.status+'\n'+esc(text.slice(0,1200))+'</div>';
@@ -185,22 +204,39 @@ $('send').addEventListener('click',async function(){
     }
     var data;
     try{data=JSON.parse(text)}catch(e){data=null;}
-    if(!data||!data.content){
-      $('err').innerHTML='<div class="err">The response had no content field. Raw:\n'+esc(text.slice(0,1200))+'</div>';
-      return;
-    }
     var reply='';
-    for(var i=0;i<data.content.length;i++){ if(data.content[i].type==='text')reply+=data.content[i].text; }
+    if(local){
+      if(!data||!data.choices||!data.choices[0]){
+        $('err').innerHTML='<div class="err">No choices in the response. Raw:\n'+esc(text.slice(0,1200))+'</div>';
+        return;
+      }
+      reply=(data.choices[0].message&&data.choices[0].message.content)||'';
+    }else{
+      if(!data||!data.content){
+        $('err').innerHTML='<div class="err">The response had no content field. Raw:\n'+esc(text.slice(0,1200))+'</div>';
+        return;
+      }
+      for(var i=0;i<data.content.length;i++){ if(data.content[i].type==='text')reply+=data.content[i].text; }
+    }
+    if(!reply){$('err').innerHTML='<div class="err">The model returned an empty reply. Raw:\n'+esc(text.slice(0,1200))+'</div>';return;}
     var marked=markReply(reply,awake.srcNorm);
     addLine('it said',marked.html);
     $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the entries it remembers; the rest are generated.';
   }catch(e){
-    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nThis is usually the browser blocking the call, a wrong model name, or no internet.</div>';
+    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nLocal models: is Ollama running with OLLAMA_ORIGINS=* ? If not, the browser blocks this and it looks like a bug in the file. Otherwise: wrong model name, or no internet for the Anthropic option.</div>';
   }
 });
 
 $('j').value=journal;
 $('j').addEventListener('input',rebuild);
+$('prov').addEventListener('change',syncProvider);
+$('prov').value=get('mirror.prov','local');
+$('model').value=get('mirror.model','qwen2.5:7b');
+$('base').value=get('mirror.base','http://localhost:11434/v1/chat/completions');
+syncProvider();
+$('model').addEventListener('input',function(){set('mirror.model',$('model').value)});
+$('base').addEventListener('input',function(){set('mirror.base',$('base').value)});
+$('prov').addEventListener('change',function(){set('mirror.prov',$('prov').value)});
 rebuild();
 </script>
 </body>
