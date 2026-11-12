@@ -13,7 +13,6 @@
  input,textarea,select{width:100%;box-sizing:border-box;padding:.6rem;font:inherit;font-size:.95rem;border:1px solid var(--rule);border-radius:6px;background:#fff;color:var(--ink)}
  textarea{min-height:110px;resize:vertical}
  button{font:inherit;padding:.55rem 1.1rem;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:6px;cursor:pointer;margin-top:.7rem}
- button.ghost{background:transparent;color:var(--ink)}
  .row{display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end}
  .row>*{flex:1 1 160px}
  .panel{border-top:1px solid var(--rule);margin-top:1.6rem;padding-top:1rem}
@@ -22,7 +21,6 @@
  q{quotes:none;color:var(--quote);background:#eef5ef;padding:0 .12em;border-radius:2px}
  .gen{color:var(--gen)}
  .legend{font-size:.8rem;color:var(--dim);margin:.5rem 0 0}
- .legend b{font-weight:normal}
  .err{background:#fdecec;border:1px solid #e3b4b4;color:#7a1f1f;padding:.7rem;border-radius:6px;font-family:ui-monospace,monospace;font-size:.82rem;white-space:pre-wrap;margin-top:.8rem}
  .note{font-size:.85rem;color:var(--dim);margin:.4rem 0 0}
  .count{font-size:.78rem;color:var(--dim);margin-top:.25rem}
@@ -30,12 +28,12 @@
 </head>
 <body>
 <h1>The waking self</h1>
-<p class="sub">It wakes on a page of your journal, remembers everything up to that page, and knows nothing after it.</p>
+<p class="sub">It wakes at an entry you actually wrote, remembers everything up to it, and knows nothing after it.</p>
 
 <label for="j">Your journal (stays in this browser — it is never sent anywhere except, as memory, to the model you choose)</label>
 <textarea id="j" placeholder="Paste the whole journal here once. It is stored on this laptop only."></textarea>
 <div class="row">
-  <div><label for="pg">Wake on page</label><select id="pg"></select></div>
+  <div><label for="pg">Wake at entry</label><select id="pg"></select></div>
   <div><label for="model">Model</label><input id="model" value="claude-sonnet-5-5"></div>
 </div>
 <div class="row">
@@ -47,9 +45,9 @@
 <div class="panel" id="room" style="display:none">
   <div id="log"></div>
   <label for="msg" style="margin-top:1rem">Say something to it</label>
-  <textarea id="msg" placeholder="What do you want to say to the person you were on that page?"></textarea>
+  <textarea id="msg" placeholder="What do you want to say to the person you were at that entry?"></textarea>
   <button id="send">Speak</button>
-  <p class="legend">Every sentence it says is marked: <q>green</q> = your own words, found verbatim in the pages it remembers. <span class="gen">amber</span> = generated — it thought forward from that moment, and it can be wrong about you.</p>
+  <p class="legend">Every sentence it says is marked: <q>green</q> = your own words, found verbatim in the entries it remembers. <span class="gen">amber</span> = generated — it thought forward from that moment, and it can be wrong about you.</p>
   <div class="count" id="count"></div>
   <div id="err"></div>
 </div>
@@ -60,27 +58,24 @@ function get(k,d){try{var v=localStorage.getItem(k);return v===null?d:v}catch(e)
 function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 
 var journal=get('mirror.journal','');
-var pages=[];
+var entries=[];
 
-function splitPages(t,max){
-  max=max||15000;
-  var paras=t.split(/\n\s*\n/);
-  var out=[],cur='';
-  function push(){if(cur.trim())out.push(cur);cur='';}
-  for(var i=0;i<paras.length;i++){
-    var p=paras[i];
-    if(p.length>max){
-      var sents=p.match(/[^.!?]+[.!?]*/g)||[p];
-      for(var k=0;k<sents.length;k++){
-        if(cur.length+sents[k].length>max)push();
-        cur+=sents[k];
-      }
-      continue;
-    }
-    if(cur.length+p.length+2>max)push();
-    cur=cur?(cur+'\n\n'+p):p;
+// A heading is a line that is only a date, a year, or 'Sometime in YYYY'.
+var HEAD=/^\s*(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?|Year\s*\d{4}|YEAR\s*\d+|Sometime in \d{4})/i;
+
+function splitEntries(text){
+  var lines=text.split(/\n/);
+  var segs=[];
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i];
+    if(HEAD.test(line))segs.push({label:line.trim().slice(0,80),lines:[line]});
+    else if(segs.length)segs[segs.length-1].lines.push(line);
   }
-  push();
+  var out=[];
+  for(var s=0;s<segs.length;s++){
+    var body=segs[s].lines.join('\n').trim();
+    if(body)out.push({label:segs[s].label,text:body});
+  }
   return out;
 }
 
@@ -101,7 +96,7 @@ function longestRun(sentWords,srcNorm){
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function markReply(reply,srcNorm){
-  var sents=reply.match(/[^.!?\n]+[.!?]*\s*/g)||[reply];
+  var sents=reply.match(/[^.!?\n]+[.\n!?]*\s*/g)||[reply];
   var html='',quoted=0;
   for(var i=0;i<sents.length;i++){
     var s=sents[i];
@@ -118,22 +113,24 @@ function markReply(reply,srcNorm){
 function rebuild(){
   journal=$('j').value;
   set('mirror.journal',journal);
-  pages=journal.trim()?splitPages(journal):[];
+  entries=journal.trim()?splitEntries(journal):[];
   var sel=$('pg');
   sel.innerHTML='';
-  for(var i=0;i<pages.length;i++){
+  for(var i=0;i<entries.length;i++){
     var o=document.createElement('option');
     o.value=String(i);
-    o.textContent='page '+(i+1)+' of '+pages.length+' ('+pages[i].length+' characters)';
+    o.textContent=(i+1)+'. '+entries[i].label+' ('+entries[i].text.length+' chars)';
     sel.appendChild(o);
   }
-  if($('room').style.display!=='none'){ $('room').style.display='none'; }
+  $('room').style.display='none';
 }
 
 var awake=null;
 
 function memoryFor(idx){
-  var m=pages.slice(0,idx+1).join('\n\n');
+  var parts=[];
+  for(var i=0;i<=idx&&i<entries.length;i++)parts.push(entries[i].text);
+  var m=parts.join('\n\n');
   var cap=90000;
   if(m.length>cap)m=m.slice(m.length-cap);
   return m;
@@ -141,13 +138,14 @@ function memoryFor(idx){
 
 $('wake').addEventListener('click',function(){
   $('err').innerHTML='';
-  if(!pages.length){$('log').innerHTML='';$('room').style.display='block';$('err').innerHTML='<div class="err">No journal text yet — paste it in the box above first.</div>';return;}
+  if(!entries.length){$('room').style.display='block';$('log').innerHTML='';$('err').innerHTML='<div class="err">No journal text yet — paste it in the box above first.</div>';return;}
   var idx=parseInt($('pg').value||'0',10);
-  awake={idx:idx,mem:memoryFor(idx),srcNorm:' '+normWords(memoryFor(idx)).join(' ')+' '};
+  var mem=memoryFor(idx);
+  awake={idx:idx,mem:mem,srcNorm:' '+normWords(mem).join(' ')+' '};
   $('room').style.display='block';
   $('log').innerHTML='';
   $('count').textContent='';
-  addLine('you','woke it on page '+(idx+1)+' of '+pages.length+'. It remembers '+awake.mem.length+' characters and nothing after this page.');
+  addLine('you','woke it at entry '+(idx+1)+' of '+entries.length+' — "'+entries[idx].label+'". It remembers '+mem.length+' characters and nothing after this entry.');
 });
 
 function addLine(who,html){
@@ -168,7 +166,7 @@ $('send').addEventListener('click',async function(){
   if(!key){$('err').innerHTML='<div class="err">No API key in the box above. It stays in this browser; I never see it.</div>';return;}
   addLine('you said',esc(msg));
   $('msg').value='';
-  var system='You are Ezana, waking on page '+(awake.idx+1)+' of your own journal. Below is everything you remember — your journal up to and including this page. You do not know anything that happens after this page; it has not happened yet for you. You are not an assistant and you are not summarising: you are the person who wrote these pages, at this moment in his life, and you speak in the first person as him. Answer as he would answer, in his voice, in short paragraphs. Do not mention that you are a model or that this is a simulation.\n\nYOUR MEMORY (your journal, up to this page):\n'+awake.mem;
+  var system='You are Ezana, waking at an entry in your own journal: "'+entries[awake.idx].label+'". Below is everything you remember — your journal up to and including this entry. You do not know anything that happens after it; it has not happened yet for you. You are not an assistant and you are not summarising: you are the person who wrote these pages, at this moment in his life, and you speak in the first person as him. Answer as he would answer, in his voice, in short paragraphs. Do not mention that you are a model or that this is a simulation.\n\nYOUR MEMORY (your journal, up to this entry):\n'+awake.mem;
   try{
     var res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -181,12 +179,12 @@ $('send').addEventListener('click',async function(){
       body:JSON.stringify({model:model,max_tokens:700,system:system,messages:[{role:'user',content:msg}]})
     });
     var text=await res.text();
-    var data;
-    try{data=JSON.parse(text)}catch(e){data=null;}
     if(!res.ok){
       $('err').innerHTML='<div class="err">HTTP '+res.status+'\n'+esc(text.slice(0,1200))+'</div>';
       return;
     }
+    var data;
+    try{data=JSON.parse(text)}catch(e){data=null;}
     if(!data||!data.content){
       $('err').innerHTML='<div class="err">The response had no content field. Raw:\n'+esc(text.slice(0,1200))+'</div>';
       return;
@@ -195,7 +193,7 @@ $('send').addEventListener('click',async function(){
     for(var i=0;i<data.content.length;i++){ if(data.content[i].type==='text')reply+=data.content[i].text; }
     var marked=markReply(reply,awake.srcNorm);
     addLine('it said',marked.html);
-    $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the pages it remembers; the rest are generated.';
+    $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the entries it remembers; the rest are generated.';
   }catch(e){
     $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nThis is usually the browser blocking the call, a wrong model name, or no internet.</div>';
   }
