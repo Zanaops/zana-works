@@ -44,7 +44,7 @@
   <div><label for="base">Endpoint</label><input id="base" value="http://localhost:11434/v1/chat/completions"></div>
   <div style="flex:0 0 auto"><button id="wake">Wake it</button></div>
 </div>
-<p class="note">Local: start Ollama first with <code>OLLAMA_ORIGINS=* ollama serve</code>, or the browser blocks the call and it looks like a bug in this file. The endpoint can be written as <code>http://localhost:11434/v1</code> or the full <code>.../v1/chat/completions</code> — it completes the path itself. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
+<p class="note">Local: start Ollama with <code>ollama serve</code> (or the Ollama app). If your browser blocks the HTML file, serve it with <code>python3 -m http.server 8765 --bind 127.0.0.1</code> and open <code>http://127.0.0.1:8765/mirror.html</code>. Do not use <code>OLLAMA_ORIGINS=*</code>. The endpoint can be written as <code>http://localhost:11434/v1</code> or the full <code>.../v1/chat/completions</code> — it completes the path itself. If the model name, endpoint or key is wrong, the provider's own error appears below in full. I could not test a live call from where I am, so you may be the first to see it speak.</p>
 
 <div class="panel" id="room" style="display:none">
   <div id="log"></div>
@@ -202,7 +202,7 @@ $('send').addEventListener('click',async function(){
     if(local){
       url=fullUrl(base);
       headers={'content-type':'application/json'};
-      body=JSON.stringify({model:model,max_tokens:700,messages:[{role:'system',content:system},{role:'user',content:msg}]});
+      body=JSON.stringify({model:model,max_tokens:700,reasoning_effort:'none',messages:[{role:'system',content:system},{role:'user',content:msg}]});
     }else{
       url=base;
       headers={'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
@@ -235,7 +235,7 @@ $('send').addEventListener('click',async function(){
     addLine('it said',marked.html);
     $('count').textContent=marked.quoted+' of '+marked.total+' sentences are your own words from the entries it remembers; the rest are generated.';
   }catch(e){
-    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nTried: '+esc(local?fullUrl(base):base)+'\nLocal models: is Ollama running with OLLAMA_ORIGINS=* ? If not, the browser blocks this and it looks like a bug in the file. Otherwise: wrong model name, or no internet for the Anthropic option.</div>';
+    $('err').innerHTML='<div class="err">The request did not complete: '+esc(String(e&&e.message?e.message:e))+'\nTried: '+esc(local?fullUrl(base):base)+'\nLocal models: confirm Ollama is running and the endpoint/model are correct. If opened as a local file, serve mirror.html from http://127.0.0.1:8765. Anthropic requires internet.</div>';
   }
 });
 
