@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little World, Big Change</title>
+<style>
+:root{color-scheme:dark;--bg:#101720;--panel:#192431;--line:#344455;--ink:#f2f6f4;--muted:#afbdc5;--mint:#a8f0cf;--gold:#ffd98a;--blue:#92c9ff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -15%,#29404a 0,transparent 52%),var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}
+main{width:min(760px,100%)}header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}h1{font-size:clamp(1.5rem,4vw,2.2rem);line-height:1.15;margin:0 0 6px}p{margin:.35rem 0;color:var(--muted)}.eyebrow{color:var(--mint);font-size:.78rem;letter-spacing:.15em;text-transform:uppercase}.progress{white-space:nowrap;color:var(--gold);font-weight:650;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#18222d}
+.card{background:linear-gradient(145deg,#1b2835,#17212c);border:1px solid var(--line);border-radius:22px;padding:clamp(16px,4vw,28px);box-shadow:0 20px 70px #0005}.goal{display:flex;gap:12px;align-items:center;margin-bottom:16px}.goal-icon{font-size:1.6rem}.goal strong{color:var(--ink)}
+#board{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;max-width:480px;margin:18px auto;touch-action:manipulation}.tile{aspect-ratio:1;border:1px solid #415264;border-radius:13px;background:#233241;color:var(--ink);font-size:clamp(1.4rem,7vw,2.4rem);cursor:pointer;transition:transform .12s,background .18s,border-color .18s;box-shadow:inset 0 1px #ffffff0b}.tile:hover{transform:translateY(-2px);border-color:var(--mint)}.tile:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-offset:3px}.tile.water{background:#174458;border-color:#27738a}.tile.garden{background:#28533e;border-color:#5caa78}.tile.flower{background:#51405f;border-color:#a77dc4}.tile.path{background:#53452f;border-color:#a8894e}.tile.locked{cursor:default;opacity:.72}.tile.locked:hover{transform:none;border-color:#415264}
+.row{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.tool{border:1px solid var(--line);border-radius:999px;background:#111a23;color:var(--ink);padding:10px 15px;cursor:pointer;font:inherit}.tool[aria-pressed=true]{border-color:var(--mint);background:#1e4038;color:#d9ffec}.tool:hover{border-color:var(--blue)}.status{min-height:52px;text-align:center;padding:12px 8px;color:var(--mint);font-weight:600}.hint{text-align:center;font-size:.9rem}.footer{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:10px}.small{font-size:.82rem}.reset{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:8px 11px;cursor:pointer;font:inherit}.reset:hover{color:var(--ink);border-color:var(--blue)}
+@media(max-width:520px){body{padding:14px}.card{border-radius:17px}#board{gap:6px}.tile{border-radius:10px}.footer{align-items:flex-start}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">A tiny world-shaping puzzle</div><h1>Make a little place bloom</h1><p>One tile at a time, turn the quiet valley into a living garden.</p></div><div class="progress" id="progress" aria-live="polite">0 / 5 blooms</div></header>
+<section class="card" aria-label="Garden puzzle">
+<div class="goal"><span class="goal-icon" aria-hidden="true">🌱</span><p><strong>Your goal:</strong> grow five blooms. Choose a tool, then shape the valley. Each change stays visible.</p></div>
+<div id="board" role="group" aria-label="Five by five garden board"></div>
+<div class="row" id="tools" aria-label="Garden tools">
+<button class="tool" data-tool="water" aria-pressed="true">💧 Water</button><button class="tool" data-tool="garden" aria-pressed="false">🌿 Plant</button><button class="tool" data-tool="path" aria-pressed="false">🪨 Path</button>
+</div>
+<div class="status" id="status" role="status" aria-live="polite">Start anywhere. Water softens the soil; planting turns watered ground green.</div>
+<p class="hint">Tip: water a tile, then plant it. Try placing paths to make the garden feel like yours.</p>
+<div class="footer"><span class="small">No timer. You can reset or pause whenever you like.</span><button class="reset" id="reset">Start over</button></div>
+</section>
+</main>
+<script>
+const N=5, board=document.querySelector('#board'), statusEl=document.querySelector('#status'), progress=document.querySelector('#progress');
+let cells,tool='water',moves=0,streak=0;
+function fresh(){cells=Array.from({length:N*N},(_,i)=>({kind:(i===12||i===7||i===17)?'seed':'soil',stage:0}));moves=0;streak=0;draw();say('Start anywhere. Water softens the soil; planting turns watered ground green.');}
+function draw(){board.innerHTML='';cells.forEach((c,i)=>{const b=document.createElement('button');b.className='tile '+(c.kind==='water'?'water':c.kind==='garden'?'garden':c.kind==='flower'?'flower':c.kind==='path'?'path':'')+(c.kind==='flower'?' locked':'');b.type='button';b.dataset.i=i;b.setAttribute('aria-label',`Tile ${Math.floor(i/N)+1}, ${i%N+1}: ${label(c)}`);b.textContent=icon(c);b.addEventListener('click',()=>act(i));board.appendChild(b)});let blooms=cells.filter(c=>c.kind==='flower').length;progress.textContent=`${blooms} / 5 blooms`;}
+function icon(c){return c.kind==='water'?'💧':c.kind==='garden'?'🌿':c.kind==='flower'?'🌼':c.kind==='path'?'🪨':c.kind==='seed'?'🌰':'·'}
+function label(c){return c.kind==='soil'?'quiet soil':c.kind==='seed'?'seed':c.kind==='water'?'watered soil':c.kind==='garden'?'garden':c.kind==='flower'?'bloom':c.kind}
+function say(s){statusEl.textContent=s}
+function act(i){const c=cells[i];if(c.kind==='flower')return;let changed=false,msg='';if(tool==='water'){if(c.kind==='soil'||c.kind==='seed'){c.kind='water';c.stage=0;changed=true;msg='The soil drinks in the water.'}else if(c.kind==='water'){c.stage++;changed=true;if(c.stage>=2){c.kind='garden';c.stage=0;msg='The watered ground is ready to plant.'}else msg='A little more water settles into the earth.'}else if(c.kind==='garden'){c.kind='flower';changed=true;msg='A bloom opens. Your garden is growing.'}else msg='That tile is already shaped.'}else if(tool==='garden'){if(c.kind==='water'){c.kind='garden';changed=true;msg='Fresh green pushes through the wet earth.'}else if(c.kind==='garden'){c.kind='flower';changed=true;msg='A bloom opens. Your garden is growing.'}else if(c.kind==='soil'){c.kind='seed';changed=true;msg='A seed waits in the quiet soil. Water it to help it grow.'}else if(c.kind==='seed'){c.kind='water';changed=true;msg='The seed is watered and ready to grow.'}}else if(tool==='path'){if(c.kind==='soil'||c.kind==='seed'){c.kind='path';changed=true;msg='A little path now crosses the valley.'}else if(c.kind==='path'){c.kind='soil';changed=true;msg='You return this tile to quiet soil.'}else msg='Keep the path clear of growing plants.'}if(!changed){say(msg||'Try another tile or choose a different tool.');return}moves++;streak++;if(streak===3&&cells.filter(x=>x.kind==='flower').length<5)msg+=' Nice rhythm—try a new corner next.';draw();if(cells.filter(x=>x.kind==='flower').length>=5){say('Five blooms! You made this place yours. Keep shaping it, or start a new garden.');return}say(msg);}
+document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>{tool=b.dataset.tool;document.querySelectorAll('.tool').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));say(`${b.textContent.trim()} selected. Choose a tile to shape the world.`)}));document.querySelector('#reset').addEventListener('click',fresh);fresh();
+</script>
+</body>
+</html>
